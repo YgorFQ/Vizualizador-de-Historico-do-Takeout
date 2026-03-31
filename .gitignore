@@ -1,0 +1,15 @@
+# Arquivo do Google Takeout — grande demais para o git
+watch-history.html
+
+# Gerado pelo parse.py — commitar apenas se quiser o histórico público
+# videos.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# OS
+.DS_Store
+Thumbs.db

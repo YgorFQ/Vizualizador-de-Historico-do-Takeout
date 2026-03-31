@@ -1,95 +1,101 @@
 # 📼 YouTube Takeout Viewer
 
-Transforme seu histórico do YouTube (Google Takeout) em uma galeria visual navegável — com thumbnails, busca e scroll infinito, igual ao YouTube.
+Transforme seu histórico do YouTube (Google Takeout) em uma galeria visual navegável — com thumbnails, busca, scroll infinito e restauração de sessão.
+
+🔗 **[Ver demo →](https://SEU-USUARIO.github.io/SEU-REPOSITORIO)**
 
 ---
 
-## ✨ O que faz
+## ✨ Funcionalidades
 
-- 🎬 Exibe todos os vídeos que você assistiu em uma grade de thumbnails
+- 🎬 Grade de thumbnails no estilo YouTube
 - 🔍 Busca por título em tempo real
 - 🔃 Ordenação: mais recentes, mais antigos, A–Z, Z–A
-- ♾️ Scroll infinito (40 vídeos por vez, sem travar)
-- 🚀 Lê arquivos gigantes sem travar memória (leitura em chunks de 8 MB)
-- 🖱️ Clique em qualquer vídeo abre direto no YouTube
+- ♾️ Scroll infinito (40 vídeos por vez)
+- 💾 Restauração de sessão — volta exatamente de onde parou
+- 🚀 Parse de arquivos gigantes sem travar memória (chunks de 8 MB)
+- 🖱️ Clique abre o vídeo direto no YouTube
 
 ---
 
-## 📋 Pré-requisitos
+## 🚀 Como subir no GitHub Pages
 
-- Python 3.8+
+### 1. Baixe seu histórico
 
-> Não precisa instalar nada além do Python. O `parse.py` usa apenas bibliotecas padrão (regex, json, pathlib).
+Acesse [Google Takeout](https://takeout.google.com), selecione apenas **YouTube e YouTube Music → Histórico → Histórico de exibição**.
 
----
+O arquivo se chama `watch-history.html`.
 
-## 🚀 Como usar
-
-### 1. Baixe seu histórico do YouTube
-
-Acesse [Google Takeout](https://takeout.google.com), selecione apenas **YouTube e YouTube Music** → **Histórico** → **Histórico de exibição**.
-
-O arquivo que você precisa se chama `watch-history.html`.
-
-### 2. Organize os arquivos
-
-```
-youtube-takeout-viewer/
-├── parse.py
-├── index.html
-└── watch-history.html   ← coloque aqui
-```
-
-### 3. Gere o JSON
+### 2. Gere o videos.json
 
 ```bash
 python parse.py watch-history.html
 ```
 
-Você verá o progresso em tempo real:
-
+Saída esperada:
 ```
 Arquivo: watch-history.html (312.4 MB)
 Lendo em chunks (sem carregar tudo na memória)...
   Progresso: 100%  (14832 vídeos encontrados)
-Total: 14832 vídeos únicos encontrados.
-Salvo em: /seu/caminho/videos.json
+Salvo em: videos.json
 ```
 
-### 4. Suba um servidor local
+### 3. Suba para o GitHub
 
-O navegador bloqueia `fetch()` de arquivos locais por segurança, então você precisa de um servidor simples:
+```bash
+git init
+git add index.html parse.py README.md .nojekyll .gitignore videos.json
+git commit -m "primeiro commit"
+git branch -M main
+git remote add origin https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git
+git push -u origin main
+```
+
+> ⚠️ O `watch-history.html` está no `.gitignore` — ele é grande demais e tem dados brutos. Só o `videos.json` vai para o repositório.
+
+### 4. Ative o GitHub Pages
+
+1. No repositório → **Settings → Pages**
+2. Em **Source**, selecione `Deploy from a branch`
+3. Branch: `main` / pasta: `/ (root)`
+4. Clique em **Save**
+
+Em ~1 minuto seu site estará em:
+```
+https://SEU-USUARIO.github.io/SEU-REPOSITORIO
+```
+
+---
+
+## 💻 Rodando localmente
 
 ```bash
 python -m http.server 8000
 ```
 
-> ⚠️ O terminal vai parecer "travado" — isso é **normal**. O servidor está rodando e esperando requisições.  
-> **Não feche o terminal.**
+Acesse: `http://localhost:8000`
 
-### 5. Abra no navegador
-
-```
-http://localhost:8000
-```
+> O terminal vai parecer "travado" — isso é normal. O servidor está rodando. Não feche.
 
 ---
 
-## 🗂️ Estrutura do projeto
+## 🗂️ Estrutura
 
 ```
 youtube-takeout-viewer/
-├── parse.py            # Faz o parse do HTML e gera videos.json
-├── index.html          # Galeria web (abre no navegador)
-├── videos.json         # Gerado pelo parse.py (não versionar)
-└── watch-history.html  # Seu arquivo do Google Takeout (não versionar)
+├── index.html          # App web
+├── parse.py            # Script de parse
+├── videos.json         # Gerado pelo parse.py — versionar para o GitHub Pages
+├── .nojekyll           # Diz ao GitHub Pages para não processar com Jekyll
+├── .gitignore
+└── README.md
 ```
 
 ---
 
 ## ⚙️ Por que leitura em chunks?
 
-O arquivo `watch-history.html` do Google Takeout pode ter **centenas de MB** e vem todo em **uma única linha**. Editores como VS Code travam ao tentar abrir. O `parse.py` resolve isso lendo o arquivo em pedaços de 8 MB por vez, mantendo um buffer inteligente para não perder entradas que ficam na fronteira entre dois chunks.
+O `watch-history.html` pode ter centenas de MB em **uma única linha**. VS Code trava ao tentar abrir. O `parse.py` lê em pedaços de 8 MB mantendo um buffer inteligente para não perder entradas na fronteira entre chunks.
 
 ---
 
@@ -97,9 +103,10 @@ O arquivo `watch-history.html` do Google Takeout pode ter **centenas de MB** e v
 
 | Parte | Tecnologia |
 |---|---|
-| Parse | Python puro (regex, sem BeautifulSoup) |
-| Frontend | HTML + CSS + JS vanilla (zero frameworks) |
-| Thumbnails | `i.ytimg.com` — serve grátis por video ID |
+| Parse | Python puro (sem dependências externas) |
+| Frontend | HTML + CSS + JS vanilla (zero frameworks, zero build) |
+| Sessão | `localStorage` com hash de integridade |
+| Thumbnails | `i.ytimg.com` — gratuito por video ID |
 
 ---
 

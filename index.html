@@ -14,7 +14,6 @@
     min-height: 100vh;
   }
 
-  /* Header */
   header {
     position: sticky;
     top: 0;
@@ -80,7 +79,6 @@
 
   .search-bar button:hover { background: #3f3f3f; }
 
-  /* Stats bar */
   .stats-bar {
     padding: 12px 24px;
     color: #aaa;
@@ -94,6 +92,12 @@
 
   .stats-bar span { color: #fff; }
 
+  .stats-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
   .sort-select {
     background: #272727;
     color: #fff;
@@ -105,7 +109,77 @@
     outline: none;
   }
 
-  /* Grid */
+  /* Toast de sessão restaurada */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #272727;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 24px;
+    font-size: 13px;
+    border: 1px solid #404040;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+    z-index: 999;
+    white-space: nowrap;
+  }
+
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  .toast button {
+    background: none;
+    border: none;
+    color: #3ea6ff;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    font-weight: 500;
+  }
+
+  .toast button:hover { text-decoration: underline; }
+
+  /* Banner de hash diferente */
+  .hash-banner {
+    display: none;
+    background: #1a1a2e;
+    border-bottom: 1px solid #3ea6ff44;
+    padding: 10px 24px;
+    font-size: 13px;
+    color: #aaa;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hash-banner.visible { display: flex; }
+
+  .hash-banner button {
+    background: none;
+    border: 1px solid #3ea6ff;
+    color: #3ea6ff;
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .hash-banner button:hover { background: #3ea6ff22; }
+
+  /* Card destacado (último visitado) */
+  .card.last-visited {
+    outline: 2px solid #3ea6ff;
+    outline-offset: 2px;
+    border-radius: 12px;
+  }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -113,7 +187,6 @@
     padding: 16px 24px 40px;
   }
 
-  /* Card */
   .card {
     cursor: pointer;
     border-radius: 12px;
@@ -125,7 +198,6 @@
   }
 
   .card:hover { transform: scale(1.03); }
-
   .card:hover .thumb-overlay { opacity: 1; }
 
   .thumb-wrap {
@@ -171,9 +243,7 @@
     margin-left: 3px;
   }
 
-  .card-info {
-    padding: 10px 4px 4px;
-  }
+  .card-info { padding: 10px 4px 4px; }
 
   .card-title {
     font-size: 14px;
@@ -187,12 +257,8 @@
     margin-bottom: 4px;
   }
 
-  .card-date {
-    font-size: 12px;
-    color: #aaa;
-  }
+  .card-date { font-size: 12px; color: #aaa; }
 
-  /* Empty / error state */
   .empty-state {
     text-align: center;
     padding: 80px 24px;
@@ -201,7 +267,6 @@
 
   .empty-state h2 { font-size: 20px; margin-bottom: 8px; color: #aaa; }
 
-  /* Sentinel for infinite scroll */
   #sentinel { height: 1px; }
 </style>
 </head>
@@ -221,14 +286,22 @@
   </div>
 </header>
 
+<!-- Banner: JSON mudou desde a última vez -->
+<div class="hash-banner" id="hash-banner">
+  ⚠️ O arquivo <code>videos.json</code> foi atualizado. Sua sessão anterior foi descartada.
+  <button onclick="dismissHashBanner()">OK</button>
+</div>
+
 <div class="stats-bar">
   <div id="stats-text">Carregando…</div>
-  <select class="sort-select" id="sort-select" onchange="applySort()">
-    <option value="default">Mais recentes primeiro</option>
-    <option value="oldest">Mais antigos primeiro</option>
-    <option value="az">Título A-Z</option>
-    <option value="za">Título Z-A</option>
-  </select>
+  <div class="stats-right">
+    <select class="sort-select" id="sort-select" onchange="applySort()">
+      <option value="default">Mais recentes primeiro</option>
+      <option value="oldest">Mais antigos primeiro</option>
+      <option value="az">Título A-Z</option>
+      <option value="za">Título Z-A</option>
+    </select>
+  </div>
 </div>
 
 <div class="grid" id="grid"></div>
@@ -239,70 +312,234 @@
   <p>Tente outro termo de busca.</p>
 </div>
 
-<script>
-  const PAGE_SIZE = 40;
-  let allVideos = [];
-  let filtered = [];
-  let page = 0;
-  let loading = false;
+<!-- Toast: sessão restaurada -->
+<div class="toast" id="toast">
+  <span id="toast-msg"></span>
+  <button onclick="clearSession()">Limpar sessão</button>
+</div>
 
+<script>
+  // ─── Constantes ──────────────────────────────────────────────
+  const PAGE_SIZE    = 40;
+  const STORAGE_KEY  = "yt_history_session";
+  const SAVE_DELAY   = 800;   // ms debounce para salvar scroll
+  const TOAST_DURATION = 4000;
+
+  // ─── Estado global ───────────────────────────────────────────
+  let allVideos  = [];
+  let filtered   = [];
+  let page       = 0;
+  let loading    = false;
+  let restoringSession = false;
+  let saveScrollTimer  = null;
+  let toastTimer       = null;
+  let intersectionObs  = null;
+
+  // ─── Session: leitura e escrita ──────────────────────────────
+  function readSession() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      // localStorage corrompido ou bloqueado (modo privado restrito)
+      return null;
+    }
+  }
+
+  function writeSession(patch) {
+    try {
+      const current = readSession() || {};
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, ...patch }));
+    } catch {
+      // Quota excedida ou bloqueado — falha silenciosa, não quebra o app
+    }
+  }
+
+  function clearSession() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    hideToast();
+  }
+
+  // ─── Hash simples do JSON (detecta se o arquivo mudou) ───────
+  // Usa tamanho + primeiro/último video_id como fingerprint barato.
+  // Não é criptográfico — só para detectar mudança de arquivo.
+  function jsonHash(videos) {
+    if (!videos.length) return "empty";
+    return `${videos.length}:${videos[0].id}:${videos[videos.length - 1].id}`;
+  }
+
+  // ─── Toast ───────────────────────────────────────────────────
+  function showToast(msg) {
+    clearTimeout(toastTimer);
+    document.getElementById("toast-msg").textContent = msg;
+    document.getElementById("toast").classList.add("show");
+    toastTimer = setTimeout(hideToast, TOAST_DURATION);
+  }
+
+  function hideToast() {
+    document.getElementById("toast").classList.remove("show");
+  }
+
+  // ─── Banner de hash diferente ────────────────────────────────
+  function showHashBanner() {
+    document.getElementById("hash-banner").classList.add("visible");
+  }
+
+  function dismissHashBanner() {
+    document.getElementById("hash-banner").classList.remove("visible");
+  }
+
+  // ─── Carregamento principal ──────────────────────────────────
   async function loadData() {
     try {
       const res = await fetch("videos.json");
       if (!res.ok) throw new Error("videos.json não encontrado");
       allVideos = await res.json();
+    } catch {
+      document.getElementById("stats-text").innerHTML =
+        '⚠ <code>videos.json</code> não encontrado';
+      document.getElementById("empty-state").style.display = "block";
+      document.getElementById("empty-state").innerHTML = `
+        <h2>Histórico não encontrado</h2>
+        <p style="margin-top:12px;line-height:1.7;max-width:480px;margin-inline:auto;">
+          O arquivo <code style="background:#272727;padding:2px 6px;border-radius:4px;">videos.json</code>
+          ainda não foi gerado ou não está na mesma pasta do <code style="background:#272727;padding:2px 6px;border-radius:4px;">index.html</code>.<br><br>
+          Rode o script e depois suba o arquivo para o repositório:<br>
+          <code style="background:#272727;padding:6px 10px;border-radius:4px;display:inline-block;margin-top:8px;">python parse.py watch-history.html</code>
+        </p>`;
+      return;
+    }
+
+    const session = readSession();
+    const currentHash = jsonHash(allVideos);
+
+    // Detecta se o JSON mudou desde a última sessão
+    if (session && session.hash && session.hash !== currentHash) {
+      clearSession();
+      showHashBanner();
+      // Inicia do zero
       filtered = [...allVideos];
       updateStats();
       loadMore();
       setupIntersection();
-    } catch (e) {
-      document.getElementById("stats-text").textContent =
-        "⚠ Execute parse.py primeiro para gerar videos.json";
+      return;
+    }
+
+    // Restaura sessão se existir
+    if (session && session.hash === currentHash) {
+      await restoreSession(session);
+    } else {
+      // Primeira vez
+      filtered = [...allVideos];
+      writeSession({ hash: currentHash });
+      updateStats();
+      loadMore();
+      setupIntersection();
     }
   }
 
-  function updateStats() {
-    const total = allVideos.length;
-    const shown = filtered.length;
-    const el = document.getElementById("stats-text");
-    el.innerHTML = shown === total
-      ? `<span>${total.toLocaleString()}</span> vídeos no histórico`
-      : `<span>${shown.toLocaleString()}</span> de ${total.toLocaleString()} vídeos`;
-  }
+  // ─── Restauração de sessão ───────────────────────────────────
+  async function restoreSession(session) {
+    restoringSession = true;
 
-  function applySearch() {
-    const q = document.getElementById("search-input").value.trim().toLowerCase();
+    // 1. Restaura busca
+    const q = session.search || "";
+    document.getElementById("search-input").value = q;
+
+    // 2. Restaura ordenação
+    const sort = session.sort || "default";
+    document.getElementById("sort-select").value = sort;
+
+    // 3. Reconstrói filtered
     filtered = q
-      ? allVideos.filter(v => v.title.toLowerCase().includes(q))
+      ? allVideos.filter(v => v.title.toLowerCase().includes(q.toLowerCase()))
       : [...allVideos];
 
-    applySort(false);
-    resetGrid();
+    sortFiltered(sort);
     updateStats();
-    document.getElementById("empty-state").style.display =
-      filtered.length === 0 ? "block" : "none";
+
+    // 4. Calcula quantas páginas precisamos renderizar para chegar ao índice salvo
+    const targetIndex = session.lastVideoIndex || 0;
+    const pagesToLoad = Math.ceil((targetIndex + 1) / PAGE_SIZE);
+
+    // 5. Renderiza todas as páginas necessárias de uma vez (sem observer)
+    for (let i = 0; i < pagesToLoad; i++) {
+      renderPage();
+    }
+
+    setupIntersection();
+    restoringSession = false;
+
+    // 6. Scroll até o card correto — espera o layout estabilizar
+    if (targetIndex > 0) {
+      await scrollToCard(targetIndex);
+      showToast(`Sessão restaurada — vídeo ${(targetIndex + 1).toLocaleString()} de ${filtered.length.toLocaleString()}`);
+    }
+
+    // 7. Salva hash caso ainda não estivesse salvo
+    writeSession({ hash: jsonHash(allVideos) });
   }
 
-  function applySort(reset = true) {
-    const val = document.getElementById("sort-select").value;
-    if (val === "oldest") filtered.reverse();
-    else if (val === "az") filtered.sort((a,b) => a.title.localeCompare(b.title));
-    else if (val === "za") filtered.sort((a,b) => b.title.localeCompare(a.title));
-    if (reset) resetGrid();
+  // ─── Scroll até card específico ──────────────────────────────
+  // Tenta até 5 vezes com intervalo crescente para aguardar o layout
+  function scrollToCard(index) {
+    return new Promise(resolve => {
+      let attempts = 0;
+      const maxAttempts = 5;
+      const delays = [100, 200, 300, 400, 500];
+
+      function tryScroll() {
+        const cards = document.querySelectorAll(".card");
+        const card  = cards[index];
+
+        if (card) {
+          // Remove destaque anterior
+          document.querySelectorAll(".card.last-visited")
+            .forEach(c => c.classList.remove("last-visited"));
+
+          card.classList.add("last-visited");
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          resolve();
+        } else if (attempts < maxAttempts) {
+          setTimeout(tryScroll, delays[attempts++]);
+        } else {
+          resolve(); // Desiste graciosamente após 5 tentativas
+        }
+      }
+
+      tryScroll();
+    });
   }
 
-  function resetGrid() {
-    page = 0;
-    document.getElementById("grid").innerHTML = "";
-    loadMore();
+  // ─── Salva posição do scroll (debounced) ─────────────────────
+  function onScroll() {
+    if (restoringSession) return;
+    clearTimeout(saveScrollTimer);
+    saveScrollTimer = setTimeout(() => {
+      // Encontra o card mais próximo do centro da viewport
+      const cards = document.querySelectorAll(".card");
+      if (!cards.length) return;
+
+      const viewportMid = window.scrollY + window.innerHeight / 2;
+      let closest = 0;
+      let minDist  = Infinity;
+
+      cards.forEach((card, i) => {
+        const dist = Math.abs(card.getBoundingClientRect().top + window.scrollY - viewportMid);
+        if (dist < minDist) { minDist = dist; closest = i; }
+      });
+
+      writeSession({ lastVideoIndex: closest });
+    }, SAVE_DELAY);
   }
 
-  function loadMore() {
+  // ─── Renderização ────────────────────────────────────────────
+  function renderPage() {
     if (loading) return;
     loading = true;
     const start = page * PAGE_SIZE;
     const chunk = filtered.slice(start, start + PAGE_SIZE);
-    if (chunk.length === 0) { loading = false; return; }
+    if (!chunk.length) { loading = false; return; }
 
     const grid = document.getElementById("grid");
     const frag = document.createDocumentFragment();
@@ -313,10 +550,12 @@
       a.href = video.url;
       a.target = "_blank";
       a.rel = "noopener noreferrer";
+      a.dataset.id = video.id;
       a.innerHTML = `
         <div class="thumb-wrap">
           <img src="${video.thumbnail}" alt="${escHtml(video.title)}"
-               loading="lazy" onerror="this.src='https://i.ytimg.com/vi/${video.id}/default.jpg'">
+               loading="lazy"
+               onerror="this.src='https://i.ytimg.com/vi/${video.id}/default.jpg';this.onerror=null;">
           <div class="thumb-overlay">
             <div class="play-btn">
               <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -335,21 +574,86 @@
     loading = false;
   }
 
-  function escHtml(str) {
-    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  function loadMore() {
+    renderPage();
+  }
+
+  // ─── Busca ───────────────────────────────────────────────────
+  function applySearch() {
+    const q = document.getElementById("search-input").value.trim().toLowerCase();
+    filtered = q
+      ? allVideos.filter(v => v.title.toLowerCase().includes(q))
+      : [...allVideos];
+
+    const sort = document.getElementById("sort-select").value;
+    sortFiltered(sort);
+    resetGrid();
+    updateStats();
+
+    writeSession({ search: q, sort, lastVideoIndex: 0 });
+
+    document.getElementById("empty-state").style.display =
+      filtered.length === 0 ? "block" : "none";
+  }
+
+  // ─── Ordenação ───────────────────────────────────────────────
+  function sortFiltered(val) {
+    if (val === "oldest")       filtered.reverse();
+    else if (val === "az")      filtered.sort((a,b) => a.title.localeCompare(b.title));
+    else if (val === "za")      filtered.sort((a,b) => b.title.localeCompare(a.title));
+    // "default" já vem na ordem do JSON (mais recentes primeiro pelo parse)
+  }
+
+  function applySort() {
+    const val = document.getElementById("sort-select").value;
+
+    // Precisa re-filtrar antes de reordenar para não perder a busca ativa
+    const q = document.getElementById("search-input").value.trim().toLowerCase();
+    filtered = q
+      ? allVideos.filter(v => v.title.toLowerCase().includes(q))
+      : [...allVideos];
+
+    sortFiltered(val);
+    resetGrid();
+    updateStats();
+    writeSession({ sort: val, lastVideoIndex: 0 });
+  }
+
+  // ─── Utilitários ─────────────────────────────────────────────
+  function resetGrid() {
+    page = 0;
+    document.getElementById("grid").innerHTML = "";
+    loadMore();
+  }
+
+  function updateStats() {
+    const total = allVideos.length;
+    const shown = filtered.length;
+    document.getElementById("stats-text").innerHTML = shown === total
+      ? `<span>${total.toLocaleString()}</span> vídeos no histórico`
+      : `<span>${shown.toLocaleString()}</span> de ${total.toLocaleString()} vídeos`;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   }
 
   function setupIntersection() {
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) loadMore();
+    if (intersectionObs) intersectionObs.disconnect();
+    intersectionObs = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && !restoringSession) loadMore();
     }, { rootMargin: "300px" });
-    obs.observe(document.getElementById("sentinel"));
+    intersectionObs.observe(document.getElementById("sentinel"));
   }
 
+  // ─── Event listeners ─────────────────────────────────────────
   document.getElementById("search-input").addEventListener("keydown", e => {
     if (e.key === "Enter") applySearch();
   });
 
+  window.addEventListener("scroll", onScroll, { passive: true });
+
+  // ─── Init ────────────────────────────────────────────────────
   loadData();
 </script>
 </body>
