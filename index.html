@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Histórico do YouTube</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Roboto', Arial, sans-serif;
+    background: #0f0f0f;
+    color: #fff;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #0f0f0f;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid #272727;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+
+  .logo svg { width: 28px; height: 20px; }
+
+  .logo-text {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-text span { color: #aaa; font-weight: 400; font-size: 13px; margin-left: 2px; }
+
+  .search-bar {
+    flex: 1;
+    max-width: 600px;
+    display: flex;
+    border-radius: 24px;
+    overflow: hidden;
+    border: 1px solid #303030;
+    background: #121212;
+  }
+
+  .search-bar input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    padding: 8px 16px;
+    font-size: 15px;
+    color: #fff;
+  }
+
+  .search-bar input::placeholder { color: #717171; }
+
+  .search-bar button {
+    background: #272727;
+    border: none;
+    padding: 0 18px;
+    cursor: pointer;
+    color: #fff;
+    font-size: 16px;
+    border-left: 1px solid #303030;
+  }
+
+  .search-bar button:hover { background: #3f3f3f; }
+
+  /* Stats bar */
+  .stats-bar {
+    padding: 12px 24px;
+    color: #aaa;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .stats-bar span { color: #fff; }
+
+  .sort-select {
+    background: #272727;
+    color: #fff;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  /* Grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 16px 24px 40px;
+  }
+
+  /* Card */
+  .card {
+    cursor: pointer;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.15s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+
+  .card:hover { transform: scale(1.03); }
+
+  .card:hover .thumb-overlay { opacity: 1; }
+
+  .thumb-wrap {
+    position: relative;
+    aspect-ratio: 16/9;
+    background: #272727;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .thumb-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .thumb-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    opacity: 0;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .play-btn {
+    width: 56px;
+    height: 56px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .play-btn svg {
+    width: 22px;
+    height: 22px;
+    fill: #0f0f0f;
+    margin-left: 3px;
+  }
+
+  .card-info {
+    padding: 10px 4px 4px;
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #fff;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+
+  .card-date {
+    font-size: 12px;
+    color: #aaa;
+  }
+
+  /* Empty / error state */
+  .empty-state {
+    text-align: center;
+    padding: 80px 24px;
+    color: #717171;
+  }
+
+  .empty-state h2 { font-size: 20px; margin-bottom: 8px; color: #aaa; }
+
+  /* Sentinel for infinite scroll */
+  #sentinel { height: 1px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="#">
+    <svg viewBox="0 0 28 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="28" height="20" rx="4" fill="#FF0000"/>
+      <polygon points="11,5 21,10 11,15" fill="white"/>
+    </svg>
+    <span class="logo-text">YouTube <span>Histórico</span></span>
+  </a>
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="Pesquisar no histórico…" autocomplete="off">
+    <button onclick="applySearch()">&#128269;</button>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div id="stats-text">Carregando…</div>
+  <select class="sort-select" id="sort-select" onchange="applySort()">
+    <option value="default">Mais recentes primeiro</option>
+    <option value="oldest">Mais antigos primeiro</option>
+    <option value="az">Título A-Z</option>
+    <option value="za">Título Z-A</option>
+  </select>
+</div>
+
+<div class="grid" id="grid"></div>
+<div id="sentinel"></div>
+
+<div class="empty-state" id="empty-state" style="display:none;">
+  <h2>Nenhum vídeo encontrado</h2>
+  <p>Tente outro termo de busca.</p>
+</div>
+
+<script>
+  const PAGE_SIZE = 40;
+  let allVideos = [];
+  let filtered = [];
+  let page = 0;
+  let loading = false;
+
+  async function loadData() {
+    try {
+      const res = await fetch("videos.json");
+      if (!res.ok) throw new Error("videos.json não encontrado");
+      allVideos = await res.json();
+      filtered = [...allVideos];
+      updateStats();
+      loadMore();
+      setupIntersection();
+    } catch (e) {
+      document.getElementById("stats-text").textContent =
+        "⚠ Execute parse.py primeiro para gerar videos.json";
+    }
+  }
+
+  function updateStats() {
+    const total = allVideos.length;
+    const shown = filtered.length;
+    const el = document.getElementById("stats-text");
+    el.innerHTML = shown === total
+      ? `<span>${total.toLocaleString()}</span> vídeos no histórico`
+      : `<span>${shown.toLocaleString()}</span> de ${total.toLocaleString()} vídeos`;
+  }
+
+  function applySearch() {
+    const q = document.getElementById("search-input").value.trim().toLowerCase();
+    filtered = q
+      ? allVideos.filter(v => v.title.toLowerCase().includes(q))
+      : [...allVideos];
+
+    applySort(false);
+    resetGrid();
+    updateStats();
+    document.getElementById("empty-state").style.display =
+      filtered.length === 0 ? "block" : "none";
+  }
+
+  function applySort(reset = true) {
+    const val = document.getElementById("sort-select").value;
+    if (val === "oldest") filtered.reverse();
+    else if (val === "az") filtered.sort((a,b) => a.title.localeCompare(b.title));
+    else if (val === "za") filtered.sort((a,b) => b.title.localeCompare(a.title));
+    if (reset) resetGrid();
+  }
+
+  function resetGrid() {
+    page = 0;
+    document.getElementById("grid").innerHTML = "";
+    loadMore();
+  }
+
+  function loadMore() {
+    if (loading) return;
+    loading = true;
+    const start = page * PAGE_SIZE;
+    const chunk = filtered.slice(start, start + PAGE_SIZE);
+    if (chunk.length === 0) { loading = false; return; }
+
+    const grid = document.getElementById("grid");
+    const frag = document.createDocumentFragment();
+
+    chunk.forEach(video => {
+      const a = document.createElement("a");
+      a.className = "card";
+      a.href = video.url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.innerHTML = `
+        <div class="thumb-wrap">
+          <img src="${video.thumbnail}" alt="${escHtml(video.title)}"
+               loading="lazy" onerror="this.src='https://i.ytimg.com/vi/${video.id}/default.jpg'">
+          <div class="thumb-overlay">
+            <div class="play-btn">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="card-info">
+          <div class="card-title">${escHtml(video.title)}</div>
+          <div class="card-date">${escHtml(video.date)}</div>
+        </div>`;
+      frag.appendChild(a);
+    });
+
+    grid.appendChild(frag);
+    page++;
+    loading = false;
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  function setupIntersection() {
+    const obs = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) loadMore();
+    }, { rootMargin: "300px" });
+    obs.observe(document.getElementById("sentinel"));
+  }
+
+  document.getElementById("search-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") applySearch();
+  });
+
+  loadData();
+</script>
+</body>
+</html>
