@@ -2,7 +2,7 @@
 
 Transforme seu histórico do YouTube (Google Takeout) em uma galeria visual navegável — com thumbnails, busca, scroll infinito e restauração de sessão.
 
-🔗 **[Ver demo →]([https://SEU-USUARIO.github.io/SEU-REPOSITORIO](https://ygorfq.github.io/Vizualizador-de-Historico-do-Takeout/))**
+🔗 **[Ver demo →](https://ygorfq.github.io/Vizualizador-de-Historico-do-Takeout/)**
 
 ---
 
